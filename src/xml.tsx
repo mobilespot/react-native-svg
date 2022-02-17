@@ -86,7 +86,10 @@ export type AdditionalProps = {
   override?: Object;
 };
 
-export type UriProps = { uri: string | null } & AdditionalProps;
+export type UriProps = {
+  uri: string | null;
+  headers: object;
+} & AdditionalProps;
 export type UriState = { xml: string | null };
 
 export type XmlProps = { xml: string | null } & AdditionalProps;
@@ -122,21 +125,32 @@ export function SvgXml(props: XmlProps) {
   }
 }
 
+export async function fetchTextWithHeaders(uri: string, headers: {}) {
+  const response = await fetch(uri, { headers });
+  return await response.text();
+}
+
 export async function fetchText(uri: string) {
   const response = await fetch(uri);
   return await response.text();
 }
 
 export function SvgUri(props: UriProps) {
-  const { onError = err, uri } = props;
+  const { onError = err, uri, headers } = props;
   const [xml, setXml] = useState<string | null>(null);
   useEffect(() => {
+    let isCancelled = false;
     uri
-      ? fetchText(uri)
-          .then(setXml)
+      ? fetchTextWithHeaders(uri, headers)
+          .then(data => {
+            !isCancelled && setXml(data);
+          })
           .catch(onError)
       : setXml(null);
-  }, [onError, uri]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [onError, uri, headers]);
   return <SvgXml xml={xml} override={props} />;
 }
 
@@ -311,7 +325,7 @@ export function parse(source: string, middleware?: Middleware): JsxAST | null {
     }
 
     if (/\S/.test(text)) {
-      children.push(text);
+      children?.push(text);
     }
 
     if (source[i] === '<') {
@@ -357,7 +371,7 @@ export function parse(source: string, middleware?: Middleware): JsxAST | null {
     };
 
     if (currentElement) {
-      children.push(element);
+      children?.push(element);
     } else {
       root = element;
     }
@@ -406,7 +420,7 @@ export function parse(source: string, middleware?: Middleware): JsxAST | null {
       error('expected ]]>');
     }
 
-    children.push(source.slice(i + 7, index));
+    children?.push(source.slice(i + 7, index));
 
     i = index + 2;
     return neutral;
