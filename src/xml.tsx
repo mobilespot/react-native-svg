@@ -87,7 +87,7 @@ export type AdditionalProps = {
   onLoad?: () => void;
 };
 
-export type UriProps = SvgProps & { uri: string | null } & AdditionalProps;
+export type UriProps = SvgProps & { uri: string | null; headers: object; } & AdditionalProps;
 export type UriState = { xml: string | null };
 
 export type XmlProps = SvgProps & { xml: string | null } & AdditionalProps;
@@ -124,6 +124,15 @@ export function SvgXml(props: XmlProps) {
   }
 }
 
+export async function fetchTextWithHeaders(uri: string, headers: {}) {
+  const response = await fetch(uri, { headers });
+  if (response.ok) {
+    return await response.text();
+  }
+  throw new Error(`Fetching ${uri} failed with status ${response.status}`);
+}
+
+
 export async function fetchText(uri: string) {
   const response = await fetch(uri);
   if (response.ok) {
@@ -133,18 +142,22 @@ export async function fetchText(uri: string) {
 }
 
 export function SvgUri(props: UriProps) {
-  const { onError = err, uri, onLoad } = props;
+  const { onError = err, uri, onLoad, headers } = props;
   const [xml, setXml] = useState<string | null>(null);
   useEffect(() => {
+    let isCancelled = false;
     uri
-      ? fetchText(uri)
+      ? fetchTextWithHeaders(uri, headers)
           .then((data) => {
-            setXml(data);
+            !isCancelled && setXml(data);
             onLoad?.();
           })
           .catch(onError)
       : setXml(null);
-  }, [onError, uri, onLoad]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [onError, uri, onLoad, headers]);
   return <SvgXml xml={xml} override={props} />;
 }
 
@@ -319,7 +332,7 @@ export function parse(source: string, middleware?: Middleware): JsxAST | null {
     }
 
     if (/\S/.test(text)) {
-      children.push(text);
+      children?.push(text);
     }
 
     if (source[i] === '<') {
@@ -365,7 +378,7 @@ export function parse(source: string, middleware?: Middleware): JsxAST | null {
     };
 
     if (currentElement) {
-      children.push(element);
+      children?.push(element);
     } else {
       root = element;
     }
@@ -414,7 +427,7 @@ export function parse(source: string, middleware?: Middleware): JsxAST | null {
       error('expected ]]>');
     }
 
-    children.push(source.slice(i + 7, index));
+    children?.push(source.slice(i + 7, index));
 
     i = index + 2;
     return neutral;
